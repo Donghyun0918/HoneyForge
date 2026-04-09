@@ -1,7 +1,7 @@
 # Docker Honeypot Lab
 
 Docker 기반 허니팟 7종과 Kali Linux 공격자 컨테이너로 구성된 폐쇄형 사이버 공격 시뮬레이션 랩.  
-9가지 공격 시나리오를 자동 실행하고, 수집된 로그를 ML 학습용 레이블된 CSV 데이터셋으로 변환한다.
+9가지 공격 시나리오를 자동 실행하고, 수집된 로그를 ML 학습용 레이블된 단일 CSV 데이터셋으로 변환한다.
 
 > **주의:** 이 프로젝트는 교육·연구 목적의 격리된 로컬 환경 전용입니다.  
 > 외부 네트워크에 절대 노출하지 마세요.
@@ -75,30 +75,60 @@ docker compose ps
 
 ---
 
-## 공격 시나리오 실행
+## 공격 시나리오
 
-| 번호 | 스크립트 | 도구 | ML 레이블 | 대상 허니팟 |
-|------|----------|------|-----------|------------|
-| 01 | `01_normal_traffic.sh` | curl, wget, nc | Etc | heralding, snare, cowrie, conpot |
-| 02 | `02_port_scan.sh` | nmap | Recon | opencanary, 전체 네트워크 |
-| 03 | `03_brute_force.sh` | hydra | Brute Force | cowrie(SSH/Telnet), heralding(HTTP/MySQL), mailoney(SMTP) |
-| 04 | `04_web_attacks.sh` | sqlmap, curl | Intrusion | snare(SQLi, XSS, LFI) |
-| 05 | `05_post_intrusion.sh` | sshpass + ssh | Intrusion | cowrie(명령어 실행, 악성코드) |
-| 06 | `06_reverse_shell.sh` | nc, python3, perl | Intrusion | cowrie(리버스 셸 시도) |
-| 07 | `07_malware_upload.sh` | sshpass, curl | Malware | cowrie(wget/curl), dionaea(FTP 업로드) |
-| 08 | `08_credential_stuffing.sh` | hydra | Brute Force | opencanary(FTP/RDP), dionaea(FTP/MSSQL), cowrie(다중 유저) |
-| 09 | `09_ics_attack.sh` | nmap, python3, snmpwalk | Recon | conpot(Modbus/SNMP/S7/EtherNet-IP) |
+### 전술 라이브러리 기반 랜덤화 시스템
 
-### 단일 실행 (9종 순차)
+각 시나리오는 실행할 때마다 전술 풀에서 무작위로 전술을 선택하고, 유저명·패스워드·페이로드·강도·타겟을 랜덤화한다. 동일한 시나리오를 반복해도 매번 다른 공격 패턴이 생성된다.
 
-```bash
-docker exec -it kali-attacker bash /scripts/run_scenarios.sh
+```
+attack_scenarios/
+├── lib/
+│   ├── common.sh            # IP 상수, 유저/패스워드/페이로드 풀, 유틸 함수
+│   │                        # (유저 50+, 패스워드 60+, SQLi 13종, XSS 10종,
+│   │                        #  LFI 10종, 리버스셸 7종, C2 URL 7종)
+│   ├── tactics_normal.sh    # 정상 트래픽 전술 8종
+│   ├── tactics_recon.sh     # 정찰 전술 12종
+│   ├── tactics_brute.sh     # 브루트포스 전술 11종
+│   ├── tactics_intrusion.sh # 침투 전술 9종
+│   ├── tactics_malware.sh   # 악성코드 전술 8종
+│   └── tactics_ics.sh       # ICS/SCADA 전술 8종
+└── 01~09_*.sh               # 실행마다 전술 N개 랜덤 선택
 ```
 
-### 대용량 데이터셋 수집 (반복 실행)
+**랜덤화 요소:**
+
+| 요소 | 범위 |
+|------|------|
+| 전술 조합 | 풀에서 매 실행마다 4~8종 무작위 선택 |
+| 유저명 | 50+ 항목 풀에서 샘플링 |
+| 패스워드 | 60+ 항목 풀에서 N개 샘플링 |
+| 페이로드 | SQLi·XSS·LFI·리버스셸 각 10~13종 풀 |
+| 공격 강도 | 요청 수, hydra 스레드 수 랜덤 |
+| 타겟 | 복수 허니팟 중 랜덤 선택 |
+| 타이밍 | 요청 간격 랜덤 |
+
+### 시나리오 목록
+
+| 번호 | 스크립트 | ML 레이블 | 전술 풀 | 대상 허니팟 |
+|------|----------|-----------|---------|------------|
+| 01 | `01_normal_traffic.sh` | Etc | 8종 중 4~7 선택 | heralding, snare, cowrie, conpot |
+| 02 | `02_port_scan.sh` | Recon | 12종 중 4~7 선택 | opencanary, 전체 네트워크 |
+| 03 | `03_brute_force.sh` | Brute Force | 11종 중 4~7 선택 | cowrie, heralding, mailoney |
+| 04 | `04_web_attacks.sh` | Intrusion | 8종 중 4~6 선택 | snare(SQLi·XSS·LFI·RFI·CMD) |
+| 05 | `05_post_intrusion.sh` | Intrusion | 명령어 랜덤 조합 | cowrie(시스템 정찰·권한상승) |
+| 06 | `06_reverse_shell.sh` | Intrusion | 7종 기법 랜덤 | cowrie(nc·python·perl·php·ruby) |
+| 07 | `07_malware_upload.sh` | Malware | 8종 중 4~6 선택 | cowrie(wget·curl·C2), dionaea(FTP) |
+| 08 | `08_credential_stuffing.sh` | Brute Force | 10종 중 5~8 선택 | opencanary·dionaea·cowrie·heralding |
+| 09 | `09_ics_attack.sh` | Recon | 8종 중 4~6 선택 | conpot(Modbus·SNMP·S7·BACnet·DNP3) |
+
+### 실행
 
 ```bash
-# 40회 반복 × 9종 = 약 10,000행 목표 (소요: 2~3시간)
+# 단일 실행 (9종 순차)
+docker exec -it kali-attacker bash /scripts/run_scenarios.sh
+
+# 대용량 데이터셋 수집 (40회 × 9종, 약 2~3시간)
 docker exec -it kali-attacker bash /scripts/run_loop.sh 40 5
 #                                                        ↑   ↑
 #                                               반복 횟수   시나리오간 대기(초)
@@ -114,13 +144,26 @@ docker exec kali-attacker bash -c \
   "python3 /scripts/parse_logs.py && python3 /scripts/label_data.py"
 ```
 
-### 출력 파일
+### 출력 파일: `dataset.csv` (단일 통합 파일, 16컬럼)
 
-| 파일 | 내용 | 주요 컬럼 |
-|------|------|-----------|
-| `auth.csv` | 인증 시도 로그 | timestamp, src_ip, dst_port, protocol, username, password, login_success, label |
-| `sessions.csv` | 세션 연결 정보 | timestamp, src_ip, dst_port, protocol, duration, login_attempts, label |
-| `input.csv` | 명령어 / 페이로드 | timestamp, src_ip, command, has_wget, has_curl, has_reverse_shell, label |
+| 컬럼 | 설명 | 유효 event_type |
+|------|------|----------------|
+| `timestamp` | ISO 8601 UTC | 전체 |
+| `src_ip` | 공격자 IP | 전체 |
+| `dst_port` | 대상 포트 | 전체 |
+| `protocol` | SSH / HTTP / FTP / SMTP / MySQL / RDP / PORTSCAN 등 | 전체 |
+| `source_honeypot` | cowrie / heralding / opencanary / snare / dionaea / mailoney / conpot | 전체 |
+| `event_type` | **auth / session / command / scan** | 전체 |
+| `username` | 인증 시도 사용자명 | auth |
+| `password` | 인증 시도 패스워드 | auth |
+| `login_success` | 0 / 1 | auth |
+| `duration` | 세션 길이 (초) | session |
+| `login_attempts` | 세션 내 로그인 시도 수 | session |
+| `command` | 실행 명령어 또는 HTTP 경로 | command |
+| `has_wget` | 0 / 1 | command |
+| `has_curl` | 0 / 1 | command |
+| `has_reverse_shell` | 0 / 1 | command |
+| `label` | Etc / Recon / Brute Force / Intrusion / Malware | 전체 |
 
 ### ML 클래스
 
@@ -137,16 +180,16 @@ docker exec kali-attacker bash -c \
 ## 레이블링 방식
 
 1. **타임스탬프 기반**: 각 시나리오의 시작~종료 시각(`scenario_times.json`)에 로그 타임스탬프를 매칭
-2. **Rule-based 보완**:
+2. **Rule-based 보완** (타임스탬프 매칭 실패 시):
 
 | 조건 | 레이블 |
 |------|--------|
 | `has_reverse_shell == 1` | Intrusion |
-| `has_wget == 1` 또는 `has_curl == 1` | Malware |
-| `login_attempts >= 10` | Brute Force |
-| `protocol == PORTSCAN` | Recon |
-| `protocol == SMTP` | Brute Force |
+| `event_type == command` + `has_wget/curl == 1` | Malware |
+| `event_type == scan` / `protocol == PORTSCAN` | Recon |
 | `source_honeypot == conpot` | Recon |
+| `protocol == SMTP` | Brute Force |
+| `login_attempts >= 10` | Brute Force |
 | 매칭 없음 | Etc |
 
 ---
@@ -164,7 +207,7 @@ Docker-honeypot/
 │   ├── heralding/        Dockerfile, heralding.yml
 │   ├── opencanary/       Dockerfile, opencanary.conf
 │   ├── snare/            Dockerfile
-│   ├── tanner/           Dockerfile, stub.py (로컬 SNARE 분석 서버)
+│   ├── tanner/           Dockerfile, stub.py
 │   ├── dionaea/          dionaea.cfg
 │   ├── mailoney/         Dockerfile, honeypot.py
 │   └── conpot/           Dockerfile, honeypot.py
@@ -173,20 +216,13 @@ Docker-honeypot/
 │   └── Dockerfile
 │
 ├── attack_scenarios/
-│   ├── 01_normal_traffic.sh
-│   ├── 02_port_scan.sh
-│   ├── 03_brute_force.sh
-│   ├── 04_web_attacks.sh
-│   ├── 05_post_intrusion.sh
-│   ├── 06_reverse_shell.sh
-│   ├── 07_malware_upload.sh
-│   ├── 08_credential_stuffing.sh
-│   └── 09_ics_attack.sh
+│   ├── lib/              ← 전술 라이브러리 (6개 파일)
+│   └── 01~09_*.sh        ← 랜덤화 시나리오 스크립트
 │
 └── scripts/
     ├── run_scenarios.sh  ← 9종 시나리오 1회 실행
     ├── run_loop.sh       ← N회 반복 실행 (대용량 수집)
-    ├── parse_logs.py     ← 7종 허니팟 로그 파싱 → CSV
+    ├── parse_logs.py     ← 7종 허니팟 로그 → dataset.csv
     └── label_data.py     ← 타임스탬프 + rule-based 레이블링
 ```
 
@@ -200,10 +236,7 @@ Docker-honeypot/
 ├── dionaea/    logsql.sqlite
 ├── mailoney/   *.json
 ├── conpot/     *.json
-├── auth.csv        ← 최종 통합 인증 데이터
-├── sessions.csv    ← 최종 통합 세션 데이터
-├── input.csv       ← 최종 통합 명령어 데이터
-└── scenario_times.json
+└── dataset.csv     ← 최종 통합 데이터셋
 ```
 
 ---
