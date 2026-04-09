@@ -144,7 +144,9 @@ docker exec kali-attacker bash -c \
   "python3 /scripts/parse_logs.py && python3 /scripts/label_data.py"
 ```
 
-### 출력 파일: `dataset.csv` (단일 통합 파일, 16컬럼)
+### 출력 파일: `dataset.csv` (단일 통합 파일, 15컬럼)
+
+레이블 없는 순수 피처 데이터셋. 레이블링은 별도로 `label_data.py`를 선택적으로 실행한다.
 
 | 컬럼 | 설명 | 유효 event_type |
 |------|------|----------------|
@@ -163,21 +165,20 @@ docker exec kali-attacker bash -c \
 | `has_wget` | 0 / 1 | command |
 | `has_curl` | 0 / 1 | command |
 | `has_reverse_shell` | 0 / 1 | command |
-| `label` | Etc / Recon / Brute Force / Intrusion / Malware | 전체 |
-
-### ML 클래스
-
-| 레이블 | 설명 | 주요 발생 허니팟 |
-|--------|------|----------------|
-| **Etc** | 정상 트래픽 | heralding, snare |
-| **Recon** | 포트스캔 / 정찰 / ICS 탐색 | opencanary, conpot |
-| **Brute Force** | 무차별 대입 / 자격증명 스터핑 | cowrie, heralding, mailoney, opencanary, dionaea |
-| **Intrusion** | 침투 후 행동 / 리버스 셸 / 웹 공격 | cowrie, snare |
-| **Malware** | 악성코드 다운로드 / C2 통신 / FTP 업로드 | cowrie, dionaea |
 
 ---
 
-## 레이블링 방식
+## 레이블링 (선택)
+
+`dataset.csv`는 레이블 없는 순수 피처 파일이다. 필요 시 아래 명령어로 레이블을 추가할 수 있다.
+
+```bash
+docker exec kali-attacker python3 /scripts/label_data.py
+```
+
+`label_data.py`는 `dataset.csv`에 `label` 컬럼을 추가하여 덮어쓴다.
+
+**레이블링 전략:**
 
 1. **타임스탬프 기반**: 각 시나리오의 시작~종료 시각(`scenario_times.json`)에 로그 타임스탬프를 매칭
 2. **Rule-based 보완** (타임스탬프 매칭 실패 시):
@@ -191,6 +192,8 @@ docker exec kali-attacker bash -c \
 | `protocol == SMTP` | Brute Force |
 | `login_attempts >= 10` | Brute Force |
 | 매칭 없음 | Etc |
+
+**ML 클래스:** Etc / Recon / Brute Force / Intrusion / Malware
 
 ---
 
