@@ -137,14 +137,47 @@ docker exec -it kali-attacker bash /scripts/run_loop.sh 40 5
 
 ---
 
-## 데이터셋 생성
+## 데이터 파이프라인
+
+### 전체 자동 실행 (권장)
 
 ```bash
-# 로그 파싱 → dataset.csv 생성
-docker exec kali-attacker python3 /scripts/parse_logs.py
+# 수집 → 파싱 → 검증 → ML 전처리 한 번에
+docker exec -it kali-attacker bash /scripts/pipeline.sh 10 5
+#                                                        ↑   ↑
+#                                               반복 횟수   시나리오간 대기(초)
 ```
 
-### 출력 파일: `dataset.csv` (단일 통합 파일, 27컬럼)
+4단계가 순서대로 실행되며, 품질 검증(`validate.py`) 실패 시 이후 단계가 자동 중단된다.
+
+### 단계별 실행
+
+```bash
+# 1. 로그 파싱 → dataset.csv + dataset_meta.json
+docker exec kali-attacker python3 /scripts/parse_logs.py
+
+# 2. 품질 검증 → validate_report.json (실패 시 exit 1)
+docker exec kali-attacker python3 /scripts/validate.py
+
+# 3. ML 전처리 → dataset_ml.csv
+docker exec kali-attacker python3 /scripts/feature_engineering.py
+```
+
+### 출력 파일
+
+| 파일 | 설명 |
+|------|------|
+| `dataset.csv` | 원시 로그 (29컬럼, parser v4.0) |
+| `dataset_ml.csv` | ML 학습용 (17컬럼, is_attack 타겟) |
+| `dataset_meta.json` | 스키마 버전·row_count·분포 메타데이터 |
+| `validate_report.json` | 컬럼·도메인·null율 품질 리포트 |
+| `pipeline.log` | 파이프라인 실행 기록 |
+
+---
+
+## 데이터셋 상세
+
+### 출력 파일: `dataset.csv` (단일 통합 파일, 29컬럼)
 
 레이블 없는 순수 원시 로그 데이터셋. 이벤트 1개 = 행 1개.
 
@@ -273,7 +306,11 @@ Docker-honeypot/
 └── scripts/
     ├── run_scenarios.sh  ← 9종 시나리오 1회 실행
     ├── run_loop.sh       ← N회 반복 실행 (대용량 수집)
-    ├── parse_logs.py          ← 7종 허니팟 로그 → dataset.csv
+    ├── pipeline.sh            ← 전체 파이프라인 단일 진입점 (수집→파싱→검증→ML)
+    ├── run_scenarios.sh       ← 9종 시나리오 1회 실행
+    ├── run_loop.sh            ← N회 반복 실행 (대용량 수집)
+    ├── parse_logs.py          ← 7종 허니팟 로그 → dataset.csv (v4.0, 29컬럼)
+    ├── validate.py            ← 데이터 품질 검증 게이트
     ├── feature_engineering.py ← dataset.csv → dataset_ml.csv (ML 전처리)
     └── label_data.py          ← 타임스탬프 + rule-based 레이블링 (선택)
 ```

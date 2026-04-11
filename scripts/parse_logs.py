@@ -66,7 +66,7 @@ import json
 import re
 import sqlite3
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -706,10 +706,10 @@ if __name__ == "__main__":
     print("=" * 55)
     write_csv(all_rows, DATASET_FIELDS, OUT_BASE / "dataset.csv")
 
-    from collections import Counter
     hp_cnt = Counter(r["source_honeypot"] for r in all_rows)
     et_cnt = Counter(r["event_type"]      for r in all_rows)
     er_cnt = Counter(r["event_result"]    for r in all_rows)
+    pr_cnt = Counter(r["protocol"]        for r in all_rows)
 
     print()
     print(" [허니팟별]")
@@ -725,5 +725,26 @@ if __name__ == "__main__":
         print(f"   {k:<10} {v:>6}행")
     print()
     print(f" 컬럼 수: {len(DATASET_FIELDS)}")
+
+    # ── dataset_meta.json 저장 ─────────────────────────────────────────────────
+    meta = {
+        "schema_version":   PARSER_VERSION,
+        "parser_version":   PARSER_VERSION,
+        "dataset_version":  INGEST_TIME,
+        "row_count":        len(all_rows),
+        "column_count":     len(DATASET_FIELDS),
+        "columns":          DATASET_FIELDS,
+        "distributions": {
+            "source_honeypot": dict(hp_cnt.most_common()),
+            "event_type":      dict(et_cnt.most_common()),
+            "event_result":    dict(er_cnt.most_common()),
+            "protocol":        dict(pr_cnt.most_common()),
+        },
+    }
+    meta_path = OUT_BASE / "dataset_meta.json"
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    print(f" 메타데이터: {meta_path}")
+
     print(" 완료!")
     print("=" * 55)

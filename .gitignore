@@ -15,6 +15,7 @@ __pycache__/
 
 # 개인 메모 (README.md로 대체)
 PROJECT_SUMMARY.md
+NOTION_SUMMARY.md
 
 # Claude Code 설정 디렉터리
 .claude/
