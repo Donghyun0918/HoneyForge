@@ -59,22 +59,30 @@ honeypot-net (172.30.0.0/24)
 
 ```bash
 # 1. 저장소 클론
-git clone https://github.com/Donghyun0918/Docker-honeypot.git
-cd Docker-honeypot
+git clone https://github.com/Donghyun0918/HoneyForge.git
+cd HoneyForge
 
-# 2. 초기 설정 (로그 디렉터리 생성 + .env 생성)
+# 2. 환경 변수 설정
+cp .env.example .env
+# .env 열어서 아래 두 경로를 본인 환경에 맞게 수정
+#   PROJECT_HOST=D:/HoneyForge         ← 클론한 경로 (Windows는 D:/ 형식)
+#   HONEYPOT_LOGS_HOST=D:/honeypot_logs ← 로그 저장 경로
+#   SECRET_KEY=...                      ← 반드시 변경
+
+# 3. 로그 디렉터리 생성
 bash setup.sh
 
-# 3. .env 파일에서 로그 경로 확인/수정
-#    HONEYPOT_LOGS=/mnt/d/honeypot_logs  ← 본인 드라이브로 변경
+# 4. 전체 빌드 및 실행 (허니팟 8종 + 대시보드)
+docker compose up -d --build
 
-# 4. 컨테이너 빌드 및 실행
-docker compose build
-docker compose up -d
-
-# 5. 상태 확인 (9개 컨테이너 모두 Up)
+# 5. 상태 확인 (11개 컨테이너 모두 Up)
 docker compose ps
 ```
+
+| 서비스 | 주소 |
+|--------|------|
+| 대시보드 (프론트엔드) | http://localhost:3000 |
+| API 서버 (백엔드) | http://localhost:8000 |
 
 ---
 
@@ -293,17 +301,10 @@ dashboard/
 
 ### 실행
 
-```bash
-# 백엔드 (WSL2 / Linux)
-cd dashboard/backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+`docker compose up -d --build` 로 백엔드·프론트엔드가 함께 기동됩니다.  
+별도 설치 없이 브라우저에서 `http://localhost:3000` 으로 접속하면 됩니다.
 
-# 프론트엔드
-cd dashboard/frontend
-npm install && npm run dev
-```
+> 로컬 개발 시에는 `dashboard/backend` 에서 uvicorn, `dashboard/frontend` 에서 `npm run dev` 로 개별 실행할 수 있습니다.
 
 ### 기능
 
